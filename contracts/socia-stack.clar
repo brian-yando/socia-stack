@@ -504,3 +504,63 @@
     (ok true)
   )
 )
+
+(define-public (unfollow-user (user-to-unfollow principal))
+  (begin
+    (asserts! (not (is-eq tx-sender user-to-unfollow)) err-self-interaction)
+    (map-delete user-following {
+      follower: tx-sender,
+      following: user-to-unfollow,
+    })
+    (ok true)
+  )
+)
+
+;; FINANCIAL FUNCTIONS
+
+(define-public (add-to-reward-pool (amount uint))
+  (begin
+    (asserts! (validate-amount amount) err-invalid-input)
+    (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
+    (var-set content-reward-pool (+ (var-get content-reward-pool) amount))
+    (ok amount)
+  )
+)
+
+;; ADMINISTRATIVE FUNCTIONS
+
+(define-public (set-contract-enabled (enabled bool))
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    (var-set contract-enabled enabled)
+    (ok enabled)
+  )
+)
+
+(define-public (set-min-stake-amount (amount uint))
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    (asserts! (validate-amount amount) err-invalid-input)
+    (var-set min-stake-amount amount)
+    (ok amount)
+  )
+)
+
+(define-public (verify-user (user principal))
+  (let ((user-data (unwrap! (map-get? users user) err-not-found)))
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    (asserts! (validate-user user) err-invalid-input)
+    (map-set users user (merge user-data { verified: true }))
+    (unwrap! (update-reputation user 100 "verification") err-owner-only)
+    (ok true)
+  )
+)
+
+(define-public (emergency-withdraw (amount uint))
+  (begin
+    (asserts! (is-eq tx-sender contract-owner) err-owner-only)
+    (asserts! (validate-amount amount) err-invalid-input)
+    (try! (as-contract (stx-transfer? amount tx-sender contract-owner)))
+    (ok amount)
+  )
+)
